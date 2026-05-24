@@ -1,0 +1,5 @@
+{
+  "api-server": "http://127.0.0.1:21114",
+  "custom-rendezvous-server": "127.0.0.1:21116",
+  "relay-server": "127.0.0.1:21117"
+}

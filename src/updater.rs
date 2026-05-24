@@ -128,49 +128,45 @@ fn check_update(manually: bool) -> ResultType<()> {
         return Ok(());
     }
 
-    let update_url = crate::common::SOFTWARE_UPDATE_URL.lock().unwrap().clone();
-    if update_url.is_empty() {
+    let download_url = crate::common::SOFTWARE_UPDATE_URL.lock().unwrap().clone();
+    if download_url.is_empty() {
         log::debug!("No update available.");
     } else {
-        let download_url = update_url.replace("tag", "download");
         let version = download_url.split('/').last().unwrap_or_default();
-        #[cfg(target_os = "windows")]
-        let download_url = if cfg!(feature = "flutter") {
-            format!(
-                "{}/rustdesk-{}-x86_64.{}",
-                download_url,
-                version,
-                if update_msi { "msi" } else { "exe" }
-            )
+        let filename = if version.ends_with(".deb") || version.ends_with(".exe") || version.ends_with(".msi") {
+            version.to_string()
         } else {
-            format!("{}/rustdesk-{}-x86-sciter.exe", download_url, version)
+            #[cfg(target_os = "windows")]
+            {
+                if cfg!(feature = "flutter") {
+                    format!("rustdesk-{}-x86_64.{}", version, if update_msi { "msi" } else { "exe" })
+                } else {
+                    format!("rustdesk-{}-x86-sciter.exe", version)
+                }
+            }
+            #[cfg(not(target_os = "windows"))]
+            format!("rustdesk-{}-x86_64.deb", version)
         };
         log::debug!("New version available: {}", &version);
         let client = create_http_client_with_url(&download_url);
-        let Some(file_path) = get_download_file_from_url(&download_url) else {
-            bail!("Failed to get the file path from the URL: {}", download_url);
-        };
+        let file_path = std::env::temp_dir().join(&filename);
         let mut is_file_exists = false;
         if file_path.exists() {
-            // Check if the file size is the same as the server file size
-            // If the file size is the same, we don't need to download it again.
             let file_size = std::fs::metadata(&file_path)?.len();
             let response = client.head(&download_url).send()?;
-            if !response.status().is_success() {
-                bail!("Failed to get the file size: {}", response.status());
-            }
-            let total_size = response
-                .headers()
-                .get(reqwest::header::CONTENT_LENGTH)
-                .and_then(|ct_len| ct_len.to_str().ok())
-                .and_then(|ct_len| ct_len.parse::<u64>().ok());
-            let Some(total_size) = total_size else {
-                bail!("Failed to get content length");
-            };
-            if file_size == total_size {
-                is_file_exists = true;
-            } else {
-                std::fs::remove_file(&file_path)?;
+            if response.status().is_success() {
+                if let Some(total_size) = response
+                    .headers()
+                    .get(reqwest::header::CONTENT_LENGTH)
+                    .and_then(|ct_len| ct_len.to_str().ok())
+                    .and_then(|ct_len| ct_len.parse::<u64>().ok())
+                {
+                    if file_size == total_size {
+                        is_file_exists = true;
+                    } else {
+                        std::fs::remove_file(&file_path)?;
+                    }
+                }
             }
         }
         if !is_file_exists {
@@ -185,12 +181,14 @@ fn check_update(manually: bool) -> ResultType<()> {
             let mut file = std::fs::File::create(&file_path)?;
             file.write_all(&file_data)?;
         }
-        // We have checked if the `conns` is empty before, but we need to check again.
-        // No need to care about the downloaded file here, because it's rare case that the `conns` are empty
-        // before the download, but not empty after the download.
         if has_no_active_conns() {
             #[cfg(target_os = "windows")]
             update_new_version(update_msi, &version, &file_path);
+            #[cfg(target_os = "linux")]
+            {
+                log::info!("Downloaded new version to: {:?}", file_path);
+                log::info!("Please install manually: sudo dpkg -i {}", file_path.display());
+            }
         }
     }
     Ok(())
