@@ -1,0 +1,55 @@
+version: '3.8'
+
+services:
+  hbbs:
+    image: rustdesk/rustdesk-server:latest
+    container_name: rustdesk-hbbs
+    command: hbbs -r rustdesk-hbbr:21117
+    ports:
+      - "21115:21115"
+      - "21116:21116"
+      - "21116:21116/udp"
+      - "21118:21118"
+    volumes:
+      - ./data/hbbs:/root
+    depends_on:
+      - hbbr
+    restart: unless-stopped
+
+  hbbr:
+    image: rustdesk/rustdesk-server:latest
+    container_name: rustdesk-hbbr
+    command: hbbr
+    ports:
+      - "21117:21117"
+      - "21119:21119"
+    volumes:
+      - ./data/hbbr:/root
+    restart: unless-stopped
+
+  api:
+    build: ./api
+    container_name: rustdesk-api
+    ports:
+      - "21114:21114"
+    volumes:
+      - ./data/hbbs:/hbbs:ro
+      - ./data/admin:/data
+    environment:
+      - HBBS_DB_PATH=/hbbs/db_v2.sqlite3
+      - ADMIN_DB_PATH=/data/admin.db
+      - HBBS_HOST=${HBBS_HOST:-127.0.0.1}
+      - JWT_SECRET=${JWT_SECRET:-change-this-in-production}
+    restart: unless-stopped
+
+  web:
+    image: nginx:alpine
+    container_name: rustdesk-web
+    ports:
+      - "80:80"
+    volumes:
+      - ./web/dist:/usr/share/nginx/html:ro
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - api
+    restart: unless-stopped
