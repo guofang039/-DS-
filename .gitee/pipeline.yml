@@ -1,0 +1,85 @@
+name: Build RustDesk
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Setup Rust
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+          source "$HOME/.cargo/env"
+          rustup target add x86_64-unknown-linux-gnu
+
+      - name: Install Dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y build-essential pkg-config libgtk-3-dev libglib2.0-dev \
+            libpulse-dev libxdo-dev libdbus-1-dev libpam0g-dev libxcb1-dev libx11-dev \
+            libasound2-dev libvpx-dev libopus-dev libssl-dev libgstreamer1.0-dev \
+            libgstreamer-plugins-base1.0-dev clang llvm-dev libclang-dev \
+            libxcb-randr0-dev libxcb-shm0-dev libyuv-dev libaom-dev nasm yasm
+
+      - name: Build
+        run: |
+          source "$HOME/.cargo/env"
+          cargo build --release --features linux-pkg-config
+
+      - name: Package DEB
+        run: |
+          mkdir -p rustdesk_${{ github.ref_name }}_amd64/DEBIAN
+          mkdir -p rustdesk_${{ github.ref_name }}_amd64/usr/bin
+          mkdir -p rustdesk_${{ github.ref_name }}_amd64/usr/lib
+          cp target/release/rustdesk rustdesk_${{ github.ref_name }}_amd64/usr/bin/
+          cp target/release/liblibrustdesk.so rustdesk_${{ github.ref_name }}_amd64/usr/lib/
+          echo "Package: rustdesk\nVersion: ${{ github.ref_name }}\nArchitecture: amd64\nMaintainer: xueguofang\nDescription: RustDesk Remote Desktop" > rustdesk_${{ github.ref_name }}_amd64/DEBIAN/control
+          dpkg-deb --build rustdesk_${{ github.ref_name }}_amd64
+
+      - name: Upload Release Asset
+        uses: actions/upload-release-asset@v1
+        with:
+          file: rustdesk_${{ github.ref_name }}_amd64.deb
+
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Setup Rust
+        run: |
+          rustup-init.exe -y
+          rustup target add x86_64-pc-windows-msvc
+
+      - name: Setup MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Install vcpkg
+        run: |
+          git clone https://github.com/microsoft/vcpkg
+          cd vcpkg
+          .\bootstrap-vcpkg.bat
+          .\vcpkg install libvpx:x64-windows-static libyuv:x64-windows-static opus:x64-windows-static aom:x64-windows-static
+          echo "VCPKG_ROOT=$PWD" >> $GITHUB_ENV
+
+      - name: Build
+        run: |
+          cargo build --release
+
+      - name: Package
+        run: |
+          mkdir release-package
+          copy target\release\rustdesk.exe release-package\
+          copy target\release\liblibrustdesk.dll release-package\
+
+      - name: Upload Release Asset
+        uses: actions/upload-release-asset@v1
+        with:
+          file: rustdesk_${{ github.ref_name }}_windows_x64.zip
