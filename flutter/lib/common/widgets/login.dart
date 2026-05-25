@@ -420,6 +420,18 @@ class LoginWidgetUserPass extends StatelessWidget {
                     )),
               ),
             ])),
+            const SizedBox(height: 12.0),
+            TextButton(
+              onPressed: () async {
+                final apiServer = await bind.mainGetApiServer();
+                final url = '$apiServer/register';
+                launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+              },
+              child: Text(
+                translate('Sign Up'),
+                style: TextStyle(fontSize: 14, color: MyTheme.accent),
+              ),
+            ),
           ],
         ));
   }
