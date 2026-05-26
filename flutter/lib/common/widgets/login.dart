@@ -428,7 +428,7 @@ class LoginWidgetUserPass extends StatelessWidget {
                 launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
               },
               child: Text(
-                translate('Sign Up'),
+                'Sign Up / 注册',
                 style: TextStyle(fontSize: 14, color: MyTheme.accent),
               ),
             ),

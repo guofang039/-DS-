@@ -122,14 +122,14 @@ Future<void> main(List<String> args) async {
 Future<void> initEnv(String appType) async {
   // global shared preference
   await platformFFI.init(appType);
-  // Force use local server for xiaoxiang-ds
-  await bind.mainSetOption(key: 'custom-rendezvous-server', value: '127.0.0.1:21116');
-  await bind.mainSetOption(key: 'relay-server', value: '127.0.0.1:21117');
-  await bind.mainSetOption(key: 'api-server', value: 'http://127.0.0.1:21114');
   // global FFI, use this **ONLY** for global configuration
   // for convenience, use global FFI on mobile platform
   // focus on multi-ffi on desktop first
   await initGlobalFFI();
+  // Force use local server for xiaoxiang-ds (must be after initGlobalFFI)
+  await bind.mainSetOption(key: 'custom-rendezvous-server', value: '127.0.0.1:21116');
+  await bind.mainSetOption(key: 'relay-server', value: '127.0.0.1:21117');
+  await bind.mainSetOption(key: 'api-server', value: 'http://127.0.0.1:21114');
   // await Firebase.initializeApp();
   _registerEventHandler();
   // Update the system theme.
